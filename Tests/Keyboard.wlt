@@ -75,15 +75,20 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	];
 	VerificationTest[
 		reset[]; statusText[nb],
-		"Vilfram  INSERT", TestID -> "bottom status identifies Insert mode"
+		"INSERT", TestID -> "bottom status identifies Insert mode without branding"
 	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", ":", "w"]; statusText[nb],
-		"Vilfram  NORMAL    Keys: :w", TestID -> "bottom status shows pending command keys"
+		"NORMAL    :w", TestID -> "bottom status shows pending command keys"
 	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "v", "h"]; statusText[nb],
-		"Vilfram  VISUAL    Keys: v", TestID -> "bottom status identifies Visual mode"
+		"VISUAL    v", TestID -> "bottom status identifies Visual mode"
+	];
+	VerificationTest[
+		reset[]; {modeColor[nb], press["\[RawEscape]"]; modeColor[nb], press["v"]; modeColor[nb]},
+		{RGBColor["#c882e7"], RGBColor["#81a1c1"], RGBColor["#a3b8ef"]},
+		TestID -> "mode colors match the active NvChad One Dark highlights"
 	];
 	Internal`InheritedBlock[{CurrentValue},
 		Unprotect[CurrentValue]; Clear[CurrentValue];
@@ -101,6 +106,46 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 				$originalCaretThickness = $Failed; setState[nb, "Mode" -> "Command"]; updateCaret[nb];
 				CurrentValue[$FrontEndSession, "InsertionCaretThickness"],
 				1, TestID -> "unsupported front ends leave caret settings alone"
+			];
+			Block[{$originalCaretColor = GrayLevel[0], $appliedCaretColor},
+				VerificationTest[
+					reset[]; setState[nb, "Mode" -> "Command"]; updateCaret[nb];
+					CurrentValue[$FrontEndSession, "InsertionCaretColor"], RGBColor["#81a1c1"],
+					TestID -> "caret color works independently of unavailable thickness"
+				];
+				VerificationTest[
+					setState[nb, "KeySequence" -> {"v"}]; updateCaret[nb];
+					CurrentValue[$FrontEndSession, "InsertionCaretColor"], RGBColor["#a3b8ef"],
+					TestID -> "Visual caret uses the Visual mode color"
+				];
+				VerificationTest[
+					setState[nb, "Mode" -> "Insert"]; updateCaret[nb];
+					CurrentValue[$FrontEndSession, "InsertionCaretColor"], GrayLevel[0],
+					TestID -> "Insert restores the original caret color"
+				];
+				VerificationTest[
+					$originalCaretColor = $Failed; setState[nb, "Mode" -> "Command"]; updateCaret[nb];
+					CurrentValue[$FrontEndSession, "InsertionCaretColor"], GrayLevel[0],
+					TestID -> "unsupported caret color remains unchanged"
+				];
+			]
+		]
+	];
+	Internal`InheritedBlock[{AttachCell, CurrentValue, NotebookDelete},
+		Unprotect[AttachCell, CurrentValue, NotebookDelete];
+		Clear[AttachCell, CurrentValue, NotebookDelete];
+		Block[{$statusCells, $originalStatusOptions},
+			attachments = 0; deleted = {};
+			CurrentValue[_, WindowFrame] := "Normal";
+			AttachCell[_, _Cell, ___] := (attachments++; CellObject["status"]);
+			NotebookDelete[cell_] := (AppendTo[deleted, cell]; Null);
+			VerificationTest[
+				ensureStatusBar[nb]; ensureStatusBar[nb]; attachments, 1,
+				TestID -> "only one attached status strip is created per notebook"
+			];
+			VerificationTest[
+				disableStatusBar[]; deleted, {CellObject["status"]},
+				TestID -> "disabling removes attached status strips"
 			];
 		]
 	];

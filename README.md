@@ -12,10 +12,12 @@ Vi-like editing in Wolfram Notebooks
 * Vilfram works in any file type that can be opened by the Wolfram front end,
   including: .nb, .wl, .wls, .wlt, and more.
 
-* The status area at the bottom of each notebook shows `INSERT`, `NORMAL`,
-  or `VISUAL` mode and pending command keys (for example `d`, `:w`, or `v`).
-  Completed and invalid commands clear the key buffer. Mode and pending keys
-  are independent for each notebook.
+* A compact strip at the bottom of each notebook shows `INSERT`, `NORMAL`,
+  or `VISUAL` on a colored badge, with pending keys right-aligned and inset by
+  12 points. The colors match this checkout's user's NvChad One Dark setup:
+  Normal `#81a1c1`, Insert `#c882e7`, Visual `#a3b8ef`, on `#22262e`.
+  There is no package label or `Keys:` prefix. Completed and invalid commands
+  clear the buffer. Mode and pending keys are independent for each notebook.
 
 
 
@@ -150,11 +152,13 @@ the notebook environment.
 
 * Caret appearance
 
-  Vilfram attempts to use a thick caret in Normal/Visual mode and restores the
-  original thin caret in Insert mode. Disabling Vilfram restores the original
-  thickness. This uses the undocumented `InsertionCaretThickness` front end
-  setting, discovered in the installed Wolfram 15.0 front end. It is applied
-  only when the front end returns a numeric value for that setting.
+  Vilfram attempts to use a thick, mode-colored caret in Normal/Visual mode and
+  restores the original caret in Insert mode. Disabling Vilfram restores both
+  the original thickness and color. This uses undocumented
+  `InsertionCaretThickness` and `InsertionCaretColor` front end settings,
+  discovered in the installed Wolfram 15.0 front end. Thickness is applied only
+  when the setting returns a number; color is applied independently when its
+  setting returns an explicit color.
 
   This is experimental: it has not been visually verified. It widens the native
   insertion bar; it does not create Vim's character-width block positioned over
@@ -167,11 +171,15 @@ the notebook environment.
 
   ```wolfram
   CurrentValue[$FrontEndSession, "InsertionCaretThickness"]
+  CurrentValue[$FrontEndSession, "InsertionCaretColor"]
   ```
 
-  A numeric result enables Vilfram's automatic thickness switching. A nonnumeric
-  result means the experiment is unavailable through this setting; forcing an
-  arbitrary value is not a verified workaround.
+  A numeric thickness enables automatic thickness switching. An explicit color
+  (`RGBColor`, `GrayLevel`, `Hue`, or `CMYKColor`) enables automatic color
+  switching even if thickness is unavailable. Other results mean that part of
+  the experiment is unavailable; forcing a value is not a verified workaround.
+  No verified setting for text-caret blinking was found. The always-visible
+  colored mode badge provides a nonflashing cue regardless of caret support.
 
 
 
@@ -218,12 +226,22 @@ ConnorGray`Vilfram`EnableVilfram[$FrontEndSession];
 `PacletDirectoryLoad` applies only to the current kernel session; repeat it
 after restarting the kernel.
 
-The bottom status bar uses
+The styled strip uses
+[AttachCell](https://reference.wolfram.com/language/ref/AttachCell.html), anchored
+to the notebook's bottom edge. Its cell is deployed and is not saved with the
+notebook. It is 26 points high and overlays the lower edge of the document
+viewport; it does not reserve a separate row of document space. This is the
+tradeoff for colored blocks and independent alignment: the native
 [WindowStatusArea](https://reference.wolfram.com/language/ref/WindowStatusArea.html)
-and displays the state for its own `EvaluationNotebook[]`. Vilfram adds
-`"StatusArea"` to the session's existing `WindowElements`, preserving scrollbars
-and other controls. Disabling Vilfram restores the previous session settings.
-Re-enabling also closes a floating palette left by an earlier Vilfram version.
+is text-oriented. The rendered strip has not yet been verified in a live front
+end in this environment.
+
+A dynamic native status area installs one attached strip per normal notebook.
+It also updates the experimental caret only for the active notebook. Vilfram
+preserves the existing scrollbars and other window controls. Disabling removes
+the attached strips and restores the previous session settings. Re-enabling
+also closes a floating palette left by an earlier Vilfram version. If the
+attachment fails, the native status area retains a plain mode/key display.
 
 The status bar is inherited from session options. A notebook with explicit local
 `WindowStatusArea` or `WindowElements` settings can override it. To let such a

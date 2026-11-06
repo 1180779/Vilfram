@@ -175,6 +175,9 @@ EnableVilfram[obj:$FrontEndSession] := (
 	If[!ValueQ[$originalCaretThickness],
 		$originalCaretThickness = Quiet[CurrentValue[$FrontEndSession, "InsertionCaretThickness"]]
 	];
+	If[!ValueQ[$originalCaretColor],
+		$originalCaretColor = Quiet[CurrentValue[$FrontEndSession, "InsertionCaretColor"]]
+	];
 	(* Close the palette left by a previously loaded version. *)
 	If[MatchQ[$statusPalette, _NotebookObject], Quiet[NotebookClose[$statusPalette]]];
 	$statusPalette = None;
@@ -209,7 +212,10 @@ DisableVilfram[$FrontEndSession] := (
 	If[NumberQ[$originalCaretThickness],
 		CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = $originalCaretThickness
 	];
-	Clear[$originalCaretThickness, $appliedCaretThickness];
+	If[MatchQ[$originalCaretColor, _RGBColor | _GrayLevel | _Hue | _CMYKColor],
+		CurrentValue[$FrontEndSession, "InsertionCaretColor"] = $originalCaretColor
+	];
+	Clear[$originalCaretThickness, $appliedCaretThickness, $originalCaretColor, $appliedCaretColor];
 )
 
 (*====================================*)
@@ -279,20 +285,68 @@ modeLabel[nb_NotebookObject] := If[getState[nb, "Mode"] === "Insert", "INSERT",
 	If[MatchQ[getState[nb, "KeySequence"], {"v", ___}], "VISUAL", "NORMAL"]
 ];
 
+(* NvChad One Dark: St_NormalMode, St_InsertMode, St_VisualMode. *)
+modeColor[nb_NotebookObject] := Switch[modeLabel[nb],
+	"NORMAL", RGBColor["#81a1c1"],
+	"INSERT", RGBColor["#c882e7"],
+	"VISUAL", RGBColor["#a3b8ef"]
+];
+
 (* This private front end setting gives a thick bar, not a glyph-width Vim block. *)
-updateCaret[nb_NotebookObject] := If[NumberQ[$originalCaretThickness],
-	With[{thickness = If[getState[nb, "Mode"] === "Insert", $originalCaretThickness, 6]},
-		If[thickness =!= $appliedCaretThickness,
-			CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = thickness;
-			$appliedCaretThickness = thickness
+updateCaret[nb_NotebookObject] := (
+	If[NumberQ[$originalCaretThickness],
+		With[{thickness = If[getState[nb, "Mode"] === "Insert", $originalCaretThickness, 6]},
+			If[thickness =!= $appliedCaretThickness,
+				CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = thickness;
+				$appliedCaretThickness = thickness
+			]
 		]
+	];
+	If[MatchQ[$originalCaretColor, _RGBColor | _GrayLevel | _Hue | _CMYKColor],
+		With[{color = If[getState[nb, "Mode"] === "Insert", $originalCaretColor, modeColor[nb]]},
+			If[color =!= $appliedCaretColor,
+				CurrentValue[$FrontEndSession, "InsertionCaretColor"] = color;
+				$appliedCaretColor = color
+			]
+		]
+	];
+);
+
+pendingKeys[nb_NotebookObject] := StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"];
+
+statusText[nb_NotebookObject] := With[{
+	keys = pendingKeys[nb]
+},
+	modeLabel[nb] <> If[keys === "", "", "    " <> keys]
+];
+
+statusBar[nb_NotebookObject, width_?NumericQ] := With[{w = Max[160, width]},
+	Framed[
+		Row[{
+			Pane[Style[modeLabel[nb], Bold, FontColor -> RGBColor["#1e222a"]],
+				{100, 26}, Alignment -> Center, Background -> modeColor[nb]],
+			Pane[Style[pendingKeys[nb], FontColor -> RGBColor["#abb2bf"]],
+				{w - 112, 26}, Alignment -> {Right, Center}],
+			Spacer[12]
+		}, Spacings -> 0],
+		Background -> RGBColor["#22262e"], FrameStyle -> None, FrameMargins -> 0,
+		BaseStyle -> {FontFamily -> "Monospace", FontSize -> 11}
 	]
 ];
 
-statusText[nb_NotebookObject] := With[{
-	keys = StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"]
-},
-	"Vilfram  " <> modeLabel[nb] <> If[keys === "", "", "    Keys: " <> keys]
+ensureStatusBar[nb_NotebookObject] := Module[{cell},
+	If[CurrentValue[nb, WindowFrame] =!= "Normal", Return[Null]];
+	If[!AssociationQ[$statusCells], $statusCells = <||>];
+	If[KeyExistsQ[$statusCells, nb], Return[Null]];
+	cell = AttachCell[nb,
+		Cell[BoxData[ToBoxes[Dynamic[Refresh[
+			statusBar[nb, First[CurrentValue[nb, WindowSize]] - 24],
+			UpdateInterval -> 0.2, TrackedSymbols :> {}
+		]]]], "Text", CellMargins -> 0, CellFrame -> 0,
+			ShowCellBracket -> False, Deployed -> True, Magnification -> 1],
+		{Left, Bottom}, 0, {Left, Bottom}, RemovalConditions -> {"EvaluatorQuit"}
+	];
+	If[MatchQ[cell, _CellObject], AssociateTo[$statusCells, nb -> cell]];
 ];
 
 enableStatusBar[] := (
@@ -304,19 +358,24 @@ enableStatusBar[] := (
 		WindowStatusArea -> Dynamic[Refresh[
 			With[{nb = EvaluationNotebook[]},
 				If[MatchQ[nb, _NotebookObject],
+					ensureStatusBar[nb];
 					(* Background notebooks must not change the active caret. *)
 					If[nb === InputNotebook[], updateCaret[nb]];
-					statusText[nb],
+					If[AssociationQ[$statusCells] && KeyExistsQ[$statusCells, nb], "", statusText[nb]],
 					""
 				]
 			], UpdateInterval -> 0.2, TrackedSymbols :> {}]]
 	}];
 )
 
-disableStatusBar[] := If[ValueQ[$originalStatusOptions],
-	SetOptions[$FrontEndSession, $originalStatusOptions];
-	Clear[$originalStatusOptions]
-];
+disableStatusBar[] := (
+	If[AssociationQ[$statusCells], Scan[Quiet[NotebookDelete[#]] &, Values[$statusCells]]];
+	Clear[$statusCells];
+	If[ValueQ[$originalStatusOptions],
+		SetOptions[$FrontEndSession, $originalStatusOptions];
+		Clear[$originalStatusOptions]
+	];
+);
 
 (*====================================*)
 
