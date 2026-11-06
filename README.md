@@ -88,9 +88,31 @@ Escape is registered through both the dedicated `EscapeKeyDown` event and the
 generic keyboard handler. An Escape-only `KeyUp` fallback also switches to Normal
 on release, intended for completion popups that consume the press and then close.
 `KeyUp` exists in the installed Wolfram 15 front end but is not listed in the
-public EventHandler documentation. Its delivery after popup dismissal still needs
-live verification; if release events are also swallowed, a second Escape remains
-necessary. Autocompletion remains enabled. Other key releases do nothing.
+public EventHandler documentation. This fallback has been reported ineffective
+with the completion popup on Linux/Wolfram 15: a second Escape is still needed.
+Autocompletion remains enabled. Other key releases do nothing.
+
+To investigate this on the affected front end, evaluate:
+
+```wolfram
+Get["/home/rdkgsk/Projects/Vilfram/Tests/EscapeProbe.wl"]
+```
+
+The disposable test notebook records notebook and front-end-wide keyboard events
+and attempts to enter Normal mode on Escape from either layer. Type `Integr`,
+wait for suggestions, press Escape once, and check the mode. If it stays Insert,
+press Escape again as a control. Use **Copy report** to share the event trace.
+Closing the test window (or its **Stop and restore handlers** button) restores the
+previous front-end handlers. During the test, event forwarding is enabled globally;
+finish the test before editing other notebooks. This experiment does not establish
+that front-end-wide handlers can intercept a native popup.
+
+An alternative workaround is disabling automatic popups through
+`CodeAssistOptions` → `"AutoPopupEnable"` in the Option Inspector, as described by
+[Wolfram Support](https://support.wolfram.com/12406/). The Linux Edit menu still
+provides **Complete Selection** (`Ctrl+k`) for on-demand completion. Any manually
+opened popup may still consume the first Escape. Vilfram does not change this
+preference automatically.
 
 ### Movement
 
