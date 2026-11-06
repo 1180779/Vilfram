@@ -15,6 +15,33 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "V"];
+		{tokens, modeLabel[nb], pendingKeys[nb]},
+		{{"MoveLineBeginning", "SelectLineEnd"}, "V-LINE", "V"},
+		TestID -> "V selects the current line and enters Visual Line"
+	];
+	VerificationTest[
+		press["j", "k", "q"]; {Drop[tokens, 2], pendingKeys[nb]},
+		{{"SelectNextLine", "SelectLineEnd", "SelectPreviousLine", "SelectLineEnd"}, "V"},
+		TestID -> "Visual Line motions extend to line boundaries and keep a bounded prefix"
+	];
+	VerificationTest[
+		press["y"]; {Last[tokens], moves, modeLabel[nb]},
+		{"Copy", {{nb, Before, Character}}, "NORMAL"}, TestID -> "Visual Line yank returns to Normal"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "V", "c"]; {Last[tokens], modeLabel[nb], pendingKeys[nb]},
+		{"Cut", "INSERT", ""}, TestID -> "Visual Line change clears its mode prefix"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "V", "\[RawEscape]"]; {moves, modeLabel[nb]},
+		{{{nb, After, Character}}, "NORMAL"}, TestID -> "Escape collapses Visual Line selection"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "V", "V"]; {moves, modeLabel[nb]},
+		{{{nb, After, Character}}, "NORMAL"}, TestID -> "V toggles Visual Line off"
+	];
 	Internal`InheritedBlock[{CurrentValue},
 		Unprotect[CurrentValue]; Clear[CurrentValue];
 		VerificationTest[

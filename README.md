@@ -123,6 +123,21 @@ checkout had them reversed.
 
 ### Visual Selection
 
+* `V` — select the current notebook line and enter `V-LINE` mode
+  - `j`, `k` — extend/shrink the selection to line boundaries
+  - `y` — copy and return to Normal
+  - `d`, `x` — cut and return to Normal
+  - `c` — cut and enter Insert
+  - `V` or `Esc` — leave the mode and collapse the selection
+
+Visual Line uses native line-beginning/end selection, with the same color as
+Visual mode and a distinct `V-LINE` badge. It selects line contents and intervening
+breaks, not a trailing newline. Copy and paste use Mathematica's clipboard;
+`p` inserts at the caret, not automatically on a new line as in Vim. Native
+wrapped-line and cell-boundary behavior still needs live verification. The
+selection tracks requested up/down moves; reversing after movement is blocked
+at a cell boundary may require leaving and re-entering `V` mode.
+
 * `v` — begin visual selection
   - `h` — change selection single character left
   - `l` — change selection single character right

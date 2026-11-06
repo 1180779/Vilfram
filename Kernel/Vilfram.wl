@@ -132,6 +132,21 @@ $VilframCommands = {
 	(*--------------------------------*)
 	(* Visual selection sub-commands. *)
 	(*--------------------------------*)
+	{"V"} :> (
+		setState[EvaluationNotebook[], "VisualLineOffset" -> 0];
+		FrontEndTokenExecute["MoveLineBeginning"];
+		FrontEndTokenExecute["SelectLineEnd"];
+		$RetainKeyCommandSequence
+	),
+	{"V", "j"} :> (
+		moveVisualLine[EvaluationNotebook[], 1];
+		$RetainKeyCommandSequence
+	),
+	{"V", "k"} :> (
+		moveVisualLine[EvaluationNotebook[], -1];
+		$RetainKeyCommandSequence
+	),
+	{"V", "V"} :> SelectionMove[EvaluationNotebook[], After, Character],
 	{"v", ___, "h"} :> (
 		FrontEndTokenExecute["SelectPrevious"];
 		$RetainKeyCommandSequence
@@ -168,14 +183,14 @@ $VilframCommands = {
 		FrontEndTokenExecute["ExpandSelection"];
 		$RetainKeyCommandSequence
 	),
-	{"v", ___, "x" | "d"} :> (
+	{"v" | "V", ___, "x" | "d"} :> (
 		FrontEndTokenExecute["Cut"];
 	),
-	{"v", ___, "c"} :> (
+	{"v" | "V", ___, "c"} :> (
 		FrontEndTokenExecute["Cut"];
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
-	{"v", ___, "y"} :> (
+	{"v" | "V", ___, "y"} :> (
 		FrontEndTokenExecute["Copy"];
 		SelectionMove[EvaluationNotebook[], Before, Character]
 	),
@@ -261,7 +276,7 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 },
 	updateCaret[nb];
 	If[key === "\[RawEscape]",
-		If[MatchQ[getState[nb, "KeySequence"], {"v", ___} | {"d", Repeated["i"]}],
+		If[MatchQ[getState[nb, "KeySequence"], {"v" | "V", ___} | {"d", Repeated["i"]}],
 			SelectionMove[nb, After, Character]
 		];
 		setState[nb, "Mode" -> "Command"];
@@ -300,10 +315,10 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 		]
 	];
 
-	If[First[keySequence] === "v" &&
+	If[MemberQ[{"v", "V"}, First[keySequence]] &&
 		MemberQ[{Missing["NoCommandKeySequenceMatches"], $RetainKeyCommandSequence}, result],
 		(* Visual mode needs only its prefix, not an ever-growing motion history. *)
-		setState[nb, "KeySequence" -> {"v"}],
+		setState[nb, "KeySequence" -> {First[keySequence]}],
 		If[result === $RetainKeyCommandSequence ||
 			(result === Missing["NoCommandKeySequenceMatches"] && commandPrefixQ[keySequence]),
 			setState[nb, "KeySequence" -> keySequence]
@@ -316,17 +331,24 @@ commandPrefixQ[keys_List] := AnyTrue[$VilframCommands,
 		MatchQ[keys, Take[pattern, UpTo[Length[keys]]]]] &
 ];
 
+moveVisualLine[nb_NotebookObject, direction_] := Module[{offset},
+	 offset = getState[nb, "VisualLineOffset"] + direction;
+	 setState[nb, "VisualLineOffset" -> offset];
+	 FrontEndTokenExecute[If[direction > 0, "SelectNextLine", "SelectPreviousLine"]];
+	 FrontEndTokenExecute[If[offset < 0, "SelectLineBeginning", "SelectLineEnd"]];
+];
+
 (*====================================*)
 
 modeLabel[nb_NotebookObject] := If[getState[nb, "Mode"] === "Insert", "INSERT",
-	If[MatchQ[getState[nb, "KeySequence"], {"v", ___}], "VISUAL", "NORMAL"]
+	Switch[getState[nb, "KeySequence"], {"v", ___}, "VISUAL", {"V", ___}, "V-LINE", _, "NORMAL"]
 ];
 
 (* NvChad One Dark: St_NormalMode, St_InsertMode, St_VisualMode. *)
 modeColor[nb_NotebookObject] := Switch[modeLabel[nb],
 	"NORMAL", RGBColor["#81a1c1"],
 	"INSERT", RGBColor["#c882e7"],
-	"VISUAL", RGBColor["#a3b8ef"]
+	"VISUAL" | "V-LINE", RGBColor["#a3b8ef"]
 ];
 
 (* This private front end setting gives a thick bar, not a glyph-width Vim block. *)
