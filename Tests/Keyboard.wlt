@@ -73,6 +73,18 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 		press["\[RawEscape]"]; {getState[nb, "Mode"], getState[nb, "KeySequence"]},
 		{"Command", {}}, TestID -> "Escape from Insert also clears stale keys"
 	];
+	VerificationTest[
+		reset[]; statusText[nb],
+		"Vilfram  INSERT", TestID -> "bottom status identifies Insert mode"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", ":", "w"]; statusText[nb],
+		"Vilfram  NORMAL    Keys: :w", TestID -> "bottom status shows pending command keys"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "h"]; statusText[nb],
+		"Vilfram  VISUAL    Keys: v", TestID -> "bottom status identifies Visual mode"
+	];
 	Internal`InheritedBlock[{CurrentValue},
 		Unprotect[CurrentValue]; Clear[CurrentValue];
 		Block[{$originalCaretThickness = 1, $appliedCaretThickness},
@@ -89,6 +101,32 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 				$originalCaretThickness = $Failed; setState[nb, "Mode" -> "Command"]; updateCaret[nb];
 				CurrentValue[$FrontEndSession, "InsertionCaretThickness"],
 				1, TestID -> "unsupported front ends leave caret settings alone"
+			];
+		]
+	];
+	Internal`InheritedBlock[{CurrentValue},
+		Unprotect[CurrentValue]; Clear[CurrentValue];
+		Block[{$originalStatusOptions, $FrontEndSession = testSession},
+			original = {WindowStatusArea -> "Previous status",
+				WindowElements -> {"VerticalScrollBar", "MagnificationPopUp"}};
+			Options[testSession] = original;
+			CurrentValue[_, WindowElements] := WindowElements /. Options[testSession];
+			VerificationTest[
+				enableStatusBar[]; WindowElements /. Options[testSession],
+				{"VerticalScrollBar", "MagnificationPopUp", "StatusArea"},
+				TestID -> "bottom status preserves existing window controls"
+			];
+			VerificationTest[
+				MatchQ[WindowStatusArea /. Options[testSession], _Dynamic], True,
+				TestID -> "bottom status is dynamic"
+			];
+			VerificationTest[
+				enableStatusBar[]; Count[WindowElements /. Options[testSession], "StatusArea"], 1,
+				TestID -> "re-enabling does not duplicate the status area"
+			];
+			VerificationTest[
+				disableStatusBar[]; Sort[Options[testSession]], Sort[original],
+				TestID -> "disabling restores the original status and window controls"
 			];
 		]
 	];

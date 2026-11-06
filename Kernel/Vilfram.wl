@@ -175,7 +175,10 @@ EnableVilfram[obj:$FrontEndSession] := (
 	If[!ValueQ[$originalCaretThickness],
 		$originalCaretThickness = Quiet[CurrentValue[$FrontEndSession, "InsertionCaretThickness"]]
 	];
-	showStatusPalette[];
+	(* Close the palette left by a previously loaded version. *)
+	If[MatchQ[$statusPalette, _NotebookObject], Quiet[NotebookClose[$statusPalette]]];
+	$statusPalette = None;
+	enableStatusBar[];
 )
 
 setVilframOptions[obj : $FrontEndSession | _NotebookObject] :=
@@ -202,6 +205,7 @@ DisableVilfram[$FrontEndSession] := (
 	}];
 	If[MatchQ[$statusPalette, _NotebookObject], Quiet[NotebookClose[$statusPalette]]];
 	$statusPalette = None;
+	disableStatusBar[];
 	If[NumberQ[$originalCaretThickness],
 		CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = $originalCaretThickness
 	];
@@ -285,28 +289,34 @@ updateCaret[nb_NotebookObject] := If[NumberQ[$originalCaretThickness],
 	]
 ];
 
-showStatusPalette[] := (
-	If[MatchQ[$statusPalette, _NotebookObject] && MemberQ[Notebooks[], $statusPalette],
-		Return[$statusPalette]
+statusText[nb_NotebookObject] := With[{
+	keys = StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"]
+},
+	"Vilfram  " <> modeLabel[nb] <> If[keys === "", "", "    Keys: " <> keys]
+];
+
+enableStatusBar[] := (
+	If[!ValueQ[$originalStatusOptions],
+		$originalStatusOptions = Options[$FrontEndSession, {WindowStatusArea, WindowElements}]
 	];
-	$statusPalette = CreatePalette[
-		Dynamic[Refresh[
-			With[{nb = InputNotebook[]},
+	SetOptions[$FrontEndSession, {
+		WindowElements -> DeleteDuplicates[Append[CurrentValue[$FrontEndSession, WindowElements], "StatusArea"]],
+		WindowStatusArea -> Dynamic[Refresh[
+			With[{nb = EvaluationNotebook[]},
 				If[MatchQ[nb, _NotebookObject],
-					updateCaret[nb];
-					Grid[{
-						{"Mode", Style[modeLabel[nb], Bold]},
-						{"Keys", Style[StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"],
-							FontFamily -> "Monospace"]}
-					}, Alignment -> Left, Spacings -> {2, 1}],
-					"No active notebook"
+					(* Background notebooks must not change the active caret. *)
+					If[nb === InputNotebook[], updateCaret[nb]];
+					statusText[nb],
+					""
 				]
-			], UpdateInterval -> 0.2, TrackedSymbols :> {}]],
-		WindowTitle -> "Vilfram", Saveable -> False,
-		WindowSize -> {260, 85}, NotebookEventActions -> {},
-		WindowClickSelect -> False
-	];
+			], UpdateInterval -> 0.2, TrackedSymbols :> {}]]
+	}];
 )
+
+disableStatusBar[] := If[ValueQ[$originalStatusOptions],
+	SetOptions[$FrontEndSession, $originalStatusOptions];
+	Clear[$originalStatusOptions]
+];
 
 (*====================================*)
 
