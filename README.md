@@ -84,6 +84,12 @@ uses the selection's end even for a backward selection; active-end tracking is
 not implemented. Yank copies first and collapses to the selection's beginning.
 Escape also collapses a selection created by the notebook-specific `di` command.
 
+Escape is registered through both the dedicated `EscapeKeyDown` event and the
+generic keyboard handler. The dedicated route does not depend on `EventKey`.
+Whether the completion popup forwards this event is not yet verified in a live
+front end: if it consumes both events, a second Escape may still be needed after
+dismissing the popup. Autocompletion remains enabled.
+
 ### Movement
 
 Character-oriented:

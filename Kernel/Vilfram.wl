@@ -214,15 +214,16 @@ EnableVilfram[obj:$FrontEndSession] := (
 )
 
 setVilframOptions[obj : $FrontEndSession | _NotebookObject] :=
-	SetOptions[obj, {
-		NotebookEventActions -> {
+	SetOptions[obj, {NotebookEventActions -> vilframEventActions[]}]
+
+vilframEventActions[] := {
 			PassEventsDown :> (
 				getState[EvaluationNotebook[], "Mode"] =!= "Command"
 				&& CurrentValue["EventKey"] =!= "\[RawEscape]"
 			),
+			"EscapeKeyDown" :> processKeyDown[EvaluationNotebook[], "\[RawEscape]"],
 			"KeyDown" :> processKeyDown[EvaluationNotebook[], CurrentValue["EventKey"]]
-		}
-	}]
+		};
 
 (*====================================*)
 

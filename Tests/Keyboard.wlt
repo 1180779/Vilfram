@@ -15,6 +15,12 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+		VerificationTest[
+			reset[];
+			Replace["EscapeKeyDown", vilframEventActions[]];
+			{modeLabel[nb], pendingKeys[nb]}, {"NORMAL", ""},
+			TestID -> "dedicated Escape event returns to Normal without generic KeyDown"
+		];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "v", "l", "\[RawEscape]", "i"];
 		{moves, modeLabel[nb], pendingKeys[nb]},
