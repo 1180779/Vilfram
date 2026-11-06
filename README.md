@@ -6,8 +6,8 @@ Vi-like editing in Wolfram Notebooks
 
 ### Features
 
-* Vilfram supports most of the standard Vi-like movement, selection, and
-  deletion commands.
+* Vilfram supports a subset of standard Vi-like movement, selection, deletion,
+  and change commands, alongside notebook-specific selection expansion.
 
 * Vilfram works in any file type that can be opened by the Wolfram front end,
   including: .nb, .wl, .wls, .wlt, and more.
@@ -67,7 +67,8 @@ The following Command-mode sequences are supported:
 
 ### Mode switching
 
-* `i`, `a` — enter Insert mode
+* `i` — enter Insert mode at the current caret
+* `a` — advance one native character/box position and enter Insert mode
 * `I` — move to the beginning of the current notebook line and enter Insert mode
 * `A` — move to the end of the current notebook line and enter Insert mode
 * `o`, `O` — open a line below/above and enter Insert mode
@@ -95,15 +96,18 @@ Word-oriented:
 
 Line-oriented:
 
-* `^` — move to beginning of line
+* `0`, `^` — move to beginning of line
 * `$` — move to end of line
 * `o` — insert new line below
 * `O` — insert new line above
 
 Document-oriented:
 
-* `G` — move to top of notebook
-* `gg` — move to end of notebook
+* `gg` — move to top of notebook
+* `G` — move to end of notebook
+
+These document motions now follow Vim's direction; earlier versions of this
+checkout had them reversed.
 
 ### Visual Selection
 
@@ -118,14 +122,32 @@ Document-oriented:
   - `$` — extend selection to end of line
 
   - `y` — copy ("yank") current selection
-  - `x` — cut current selection
+  - `x`, `d` — cut current selection and return to Normal mode
+  - `c` — cut current selection and enter Insert mode
 
 ### Deletion
 
+* `dd` — select the current native notebook text line and cut it
 * `de` — delete to next word
 * `db` — delete to previous word
+* `dw` — delete to next natural word
 * `d^` — delete to beginning of line
-* `d$` — delete to end of line
+* `d$`, `D` — delete to end of line
+
+### Change
+
+* `cc` — clear the current line's contents and enter Insert mode
+* `C` — delete from the caret to the end of the line and enter Insert mode
+
+`cc` preserves the line break. `dd` uses the documented
+[`SelectionMove[..., All, TextLine]`](https://reference.wolfram.com/language/ref/SelectionMove.html)
+unit and the native Cut action, preserving structured notebook data on the
+clipboard. If selecting the line fails, nothing is cut. Line boundaries and
+line-break selection follow the front end, including in wrapped text and
+typeset cells; this has not been verified in a live front end here. `p` uses
+native Paste at the caret, rather than Vim's separate linewise paste behavior.
+Counts such as `3dd`, registers, repeat (`.`), and general change motions such
+as `cw` are not implemented.
 
 ### Other
 

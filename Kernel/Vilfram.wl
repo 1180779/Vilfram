@@ -53,7 +53,11 @@ $VilframCommands = {
 	(*--------------------*)
 	(* Common Vi Commands *)
 	(*--------------------*)
-	{"i" | "a"} :> (
+	{"i"} :> (
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
+	),
+	{"a"} :> (
+		FrontEndTokenExecute["MoveNext"];
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{"I"} :> (
@@ -77,10 +81,10 @@ $VilframCommands = {
 		consecutive non-whitespace. *)
 	{"B"} :> FrontEndTokenExecute["MovePreviousNaturalWord"],
 	{"e"} :> FrontEndTokenExecute["MoveNextWord"],
-	{"^"} :> FrontEndTokenExecute["MoveLineBeginning"],
+	{"0" | "^"} :> FrontEndTokenExecute["MoveLineBeginning"],
 	{"$"} :> FrontEndTokenExecute["MoveLineEnd"],
-	{"G"} :> SelectionMove[EvaluationNotebook[], Before, Notebook],
-	{"g", "g"} :> SelectionMove[EvaluationNotebook[], After, Notebook],
+	{"G"} :> SelectionMove[EvaluationNotebook[], After, Notebook],
+	{"g", "g"} :> SelectionMove[EvaluationNotebook[], Before, Notebook],
 	{"u"} :> FrontEndTokenExecute["Undo"],
 	{"x"} :> FrontEndTokenExecute["Cut"],
 	{"y"} :> FrontEndTokenExecute["Copy"],
@@ -91,9 +95,10 @@ $VilframCommands = {
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{"O"} :> (
-		FrontEndTokenExecute["MovePreviousLine"];
-		FrontEndTokenExecute["MoveLineEnd"];
+		FrontEndTokenExecute["MoveLineBeginning"];
 		FrontEndTokenExecute["InsertSoftReturn"];
+		FrontEndTokenExecute["MovePreviousLine"];
+		FrontEndTokenExecute["MoveLineBeginning"];
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{":", "w", "\r"} :> (
@@ -108,6 +113,22 @@ $VilframCommands = {
 	{"d", "w"} :> FrontEndTokenExecute["DeleteNextNaturalWord"],
 	{"d", "^"} :> FrontEndTokenExecute["DeleteLineBeginning"],
 	{"d", "$"} :> FrontEndTokenExecute["DeleteLineEnd"],
+	{"D"} :> FrontEndTokenExecute["DeleteLineEnd"],
+	{"d", "d"} :> (
+		(* Use the native line unit so structured boxes are not flattened to text. *)
+		If[SelectionMove[EvaluationNotebook[], All, TextLine] =!= $Failed,
+			FrontEndTokenExecute["Cut"]
+		]
+	),
+	{"C"} :> (
+		FrontEndTokenExecute["DeleteLineEnd"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
+	),
+	{"c", "c"} :> (
+		FrontEndTokenExecute["MoveLineBeginning"];
+		FrontEndTokenExecute["DeleteLineEnd"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
+	),
 	(*--------------------------------*)
 	(* Visual selection sub-commands. *)
 	(*--------------------------------*)
@@ -147,8 +168,12 @@ $VilframCommands = {
 		FrontEndTokenExecute["ExpandSelection"];
 		$RetainKeyCommandSequence
 	),
-	{"v", ___, "x"} :> (
+	{"v", ___, "x" | "d"} :> (
 		FrontEndTokenExecute["Cut"];
+	),
+	{"v", ___, "c"} :> (
+		FrontEndTokenExecute["Cut"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{"v", ___, "y"} :> FrontEndTokenExecute["Copy"],
 	(*------------------*)

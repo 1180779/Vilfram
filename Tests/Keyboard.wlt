@@ -1,20 +1,83 @@
 Begin["ConnorGray`Vilfram`Private`"];
 
 (* Replace only the front end boundary; run the real command dispatcher. *)
-Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenExecute},
-	Unprotect[EvaluationNotebook, FrontEndTokenExecute];
-	Clear[getState, setState, EvaluationNotebook, FrontEndTokenExecute];
+Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenExecute, SelectionMove},
+	Unprotect[EvaluationNotebook, FrontEndTokenExecute, SelectionMove];
+	Clear[getState, setState, EvaluationNotebook, FrontEndTokenExecute, SelectionMove];
 	state[_, _] := Inherited;
 	getState[nb_, key_] := Replace[state[nb, key], Inherited :> Switch[key, "Mode", "Insert", "KeySequence", {}]];
 	setState[nb_, key_ -> value_] := (state[nb, key] = value);
 	EvaluationNotebook[] := NotebookObject["test"];
 	FrontEndTokenExecute[token_] := (AppendTo[tokens, token]; Null);
+	SelectionMove[args___] := (AppendTo[moves, {args}]; Null);
 	nb = EvaluationNotebook[];
-	reset[] := (Clear[state]; state[_, _] := Inherited; tokens = {});
+	reset[] := (Clear[state]; state[_, _] := Inherited; tokens = {}; moves = {});
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
 	VerificationTest[stateDefault["KeySequence"], {}, TestID -> "new notebooks have an empty buffer"];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "a"]; {tokens, getState[nb, "Mode"]},
+		{{"MoveNext"}, "Insert"}, TestID -> "a advances before entering Insert"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "i"]; {tokens, getState[nb, "Mode"]},
+		{{}, "Insert"}, TestID -> "i inserts at the current caret"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "O"]; {tokens, getState[nb, "Mode"]},
+		{{"MoveLineBeginning", "InsertSoftReturn", "MovePreviousLine", "MoveLineBeginning"}, "Insert"},
+		TestID -> "O opens above even when there is no previous line"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "d"]; {tokens, moves, pendingKeys[nb]},
+		{{}, {}, "d"}, TestID -> "d waits for a motion or another d"
+	];
+	VerificationTest[
+		press["d"]; {tokens, moves, getState[nb, "Mode"], pendingKeys[nb]},
+		{{"Cut"}, {{nb, All, TextLine}}, "Command", ""},
+		TestID -> "dd cuts a native notebook line and stays in Normal"
+	];
+	Internal`InheritedBlock[{SelectionMove},
+		Clear[SelectionMove]; SelectionMove[___] := $Failed;
+		VerificationTest[
+			reset[]; press["\[RawEscape]", "d", "d"]; {tokens, pendingKeys[nb]},
+			{{}, ""}, TestID -> "dd never cuts an old selection if line selection fails"
+		];
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "D"]; {tokens, getState[nb, "Mode"]},
+		{{"DeleteLineEnd"}, "Command"}, TestID -> "D deletes to the end of the line"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "C"]; {tokens, getState[nb, "Mode"], pendingKeys[nb]},
+		{{"DeleteLineEnd"}, "Insert", ""}, TestID -> "C changes to the end of the line"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "c"]; {tokens, pendingKeys[nb], getState[nb, "Mode"]},
+		{{}, "c", "Command"}, TestID -> "c waits without entering Insert"
+	];
+	VerificationTest[
+		press["c"]; {tokens, getState[nb, "Mode"], pendingKeys[nb]},
+		{{"MoveLineBeginning", "DeleteLineEnd"}, "Insert", ""},
+		TestID -> "cc clears the line contents and enters Insert"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "0"]; tokens,
+		{"MoveLineBeginning"}, TestID -> "zero moves to the line beginning"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "g", "g", "G"]; moves,
+		{{nb, Before, Notebook}, {nb, After, Notebook}}, TestID -> "gg goes to the top and G to the bottom"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "l", "d"]; {tokens, modeLabel[nb], pendingKeys[nb]},
+		{{"SelectNext", "Cut"}, "NORMAL", ""}, TestID -> "visual d cuts and returns to Normal"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "l", "c"]; {tokens, modeLabel[nb], pendingKeys[nb]},
+		{{"SelectNext", "Cut"}, "INSERT", ""}, TestID -> "visual c cuts and enters Insert"
+	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "I"]; {tokens, getState[nb, "Mode"], getState[nb, "KeySequence"]},
 		{{"MoveLineBeginning"}, "Insert", {}}, TestID -> "I moves to line beginning and inserts"
@@ -62,7 +125,7 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "O"]; {Last[tokens], getState[nb, "Mode"]},
-		{"InsertSoftReturn", "Insert"}, TestID -> "O enters Insert after opening a line"
+		{"MoveLineBeginning", "Insert"}, TestID -> "O enters Insert at the beginning of the new line"
 	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", ":", "q", "h"]; {tokens, getState[nb, "KeySequence"]},
