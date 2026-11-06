@@ -12,6 +12,11 @@ Vi-like editing in Wolfram Notebooks
 * Vilfram works in any file type that can be opened by the Wolfram front end,
   including: .nb, .wl, .wls, .wlt, and more.
 
+* A small **Vilfram** palette shows the active notebook's `INSERT`, `NORMAL`,
+  or `VISUAL` mode and pending command keys (for example `d`, `:w`, or `v`).
+  Completed and invalid commands clear the key buffer. The palette follows
+  notebook focus; mode and pending keys are independent for each notebook.
+
 
 
 ## Getting Started
@@ -61,7 +66,16 @@ The following Command-mode sequences are supported:
 ### Mode switching
 
 * `i`, `a` — enter Insert mode
-* `Esc` — enter Command mode
+* `I` — move to the beginning of the current notebook line and enter Insert mode
+* `A` — move to the end of the current notebook line and enter Insert mode
+* `o`, `O` — open a line below/above and enter Insert mode
+* `Esc` — enter Command mode (shown as `NORMAL`) and cancel pending keys/visual selection
+
+New notebooks start in Insert mode. `I` and `A` use the same notebook line
+boundaries as `^` and `$`; notebook boxes and wrapped lines can differ from Vim's
+plain text lines. Visual mode is represented internally by a retained `v` prefix;
+the palette reports that state as `VISUAL`. Pressing Escape stops extending the
+selection without deleting the selected content.
 
 ### Movement
 
@@ -162,3 +176,39 @@ Use **Edit** > **Enable Vilfram** to re-enable Vilfram.
 
 
 [WindowStatusArea]: https://reference.wolfram.com/language/ref/WindowStatusArea
+
+## Working from a local checkout
+
+To load changes into an already running Mathematica kernel, evaluate:
+
+```wolfram
+Get["/home/rdkgsk/Projects/Vilfram/Kernel/Vilfram.wl"];
+ConnorGray`Vilfram`EnableVilfram[$FrontEndSession];
+```
+
+This uses the checkout for the current session. Re-run after editing the source.
+In a fresh kernel, you can also make the checkout discoverable with
+[PacletDirectoryLoad](https://reference.wolfram.com/language/ref/PacletDirectoryLoad.html):
+
+```wolfram
+PacletDirectoryLoad["/home/rdkgsk/Projects/Vilfram"];
+Needs["ConnorGray`Vilfram`"];
+ConnorGray`Vilfram`EnableVilfram[$FrontEndSession];
+```
+
+`PacletDirectoryLoad` applies only to the current kernel session; repeat it
+after restarting the kernel.
+
+The status palette uses [CreatePalette](https://reference.wolfram.com/language/ref/CreatePalette.html)
+and displays the state for `InputNotebook[]`. Re-enabling Vilfram reopens the
+palette if it was closed; disabling Vilfram closes it.
+
+Run the keyboard regression tests from the checkout directory:
+
+```sh
+WolframKernel -noinit -noprompt -script Tests/Run.wls
+```
+
+These tests run the real dispatcher with in-memory notebook state and front end
+tokens replaced at the boundary. They do not simulate physical keyboard events
+or verify rendered notebook layout.

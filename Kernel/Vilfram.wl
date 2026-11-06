@@ -56,6 +56,14 @@ $VilframCommands = {
 	{"i" | "a"} :> (
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
+	{"I"} :> (
+		FrontEndTokenExecute["MoveLineBeginning"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
+	),
+	{"A"} :> (
+		FrontEndTokenExecute["MoveLineEnd"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
+	),
 	{"j"} :> FrontEndTokenExecute["MoveNextLine"],
 	{"k"} :> FrontEndTokenExecute["MovePreviousLine"],
 	{"h"} :> FrontEndTokenExecute["MovePrevious"],
@@ -80,11 +88,13 @@ $VilframCommands = {
 	{"o"} :> (
 		FrontEndTokenExecute["MoveLineEnd"];
 		FrontEndTokenExecute["InsertSoftReturn"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{"O"} :> (
 		FrontEndTokenExecute["MovePreviousLine"];
 		FrontEndTokenExecute["MoveLineEnd"];
 		FrontEndTokenExecute["InsertSoftReturn"];
+		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
 	{":", "w", "\r"} :> (
 		FrontEndTokenExecute["Save"];
@@ -140,6 +150,7 @@ $VilframCommands = {
 	{"v", ___, "x"} :> (
 		FrontEndTokenExecute["Cut"];
 	),
+	{"v", ___, "y"} :> FrontEndTokenExecute["Copy"],
 	(*------------------*)
 	(* Vi-like Commands *)
 	(*------------------*)
@@ -159,8 +170,10 @@ EnableVilfram[] := (
 	PacletEnable["ConnorGray/Vilfram"]
 )
 
-EnableVilfram[obj:$FrontEndSession] :=
-	setVilframOptions[obj]
+EnableVilfram[obj:$FrontEndSession] := (
+	setVilframOptions[obj];
+	showStatusPalette[];
+)
 
 setVilframOptions[obj : $FrontEndSession | _NotebookObject] :=
 	SetOptions[obj, {
@@ -184,29 +197,20 @@ DisableVilfram[$FrontEndSession] := (
 	SetOptions[$FrontEndSession, {
 		NotebookEventActions -> Inherited
 	}];
+	If[MatchQ[$statusPalette, _NotebookObject], Quiet[NotebookClose[$statusPalette]]];
+	$statusPalette = None;
 )
 
 (*====================================*)
 
-processKeyDown[nb_NotebookObject, key_?StringQ] := With[{
+processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 	currentMode = getState[nb, "Mode"],
-	setMode = mode |-> setState[nb, "Mode" -> mode]
-}, Module[{
 	keySequence,
 	result
 },
-	If[key === "\[RawEscape]" (* \\[RawEscape] *),
-		Replace[currentMode, {
-			"Command" :> (
-				(* Reset the command sequence back to empty. *)
-				setState[nb, "KeySequence" -> {}];
-			),
-			"Insert" | _ :> (
-				(* Switch to Command mode. *)
-				setState[nb, "Mode" -> "Command"];
-			)
-		}];
-
+	If[key === "\[RawEscape]",
+		setState[nb, "Mode" -> "Command"];
+		setState[nb, "KeySequence" -> {}];
 		Return[Null];
 	];
 
@@ -231,8 +235,8 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := With[{
 		)
 	}];
 
-	(* FIXME: If the command action throws an exception or abort,
-		we should still reset the store "KeySequence" *)
+	(* Clear before execution so a failed command cannot leave stale keys. *)
+	setState[nb, "KeySequence" -> {}];
 	result = Replace[
 		keySequence,
 		Append[
@@ -241,18 +245,49 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := With[{
 		]
 	];
 
-	Replace[result, {
-		Missing["NoCommandKeySequenceMatches"] | $RetainKeyCommandSequence :> (
-			(* No command key sequence matched, so save the updated key sequence. *)
-			setState[nb, "KeySequence" -> keySequence];
-		),
-		_ :> (
-			(* A key command sequence matched the user's input, so reset the
-				stored command key sequence. *)
-			setState[nb, "KeySequence" -> {}];
-		)
-	}];
-]]
+	If[First[keySequence] === "v" &&
+		MemberQ[{Missing["NoCommandKeySequenceMatches"], $RetainKeyCommandSequence}, result],
+		(* Visual mode needs only its prefix, not an ever-growing motion history. *)
+		setState[nb, "KeySequence" -> {"v"}],
+		If[result === $RetainKeyCommandSequence ||
+			(result === Missing["NoCommandKeySequenceMatches"] && commandPrefixQ[keySequence]),
+			setState[nb, "KeySequence" -> keySequence]
+		]
+	];
+]
+
+commandPrefixQ[keys_List] := AnyTrue[$VilframCommands,
+	Replace[#, HoldPattern[RuleDelayed[pattern_List, _]] :>
+		MatchQ[keys, Take[pattern, UpTo[Length[keys]]]]] &
+];
+
+(*====================================*)
+
+modeLabel[nb_NotebookObject] := If[getState[nb, "Mode"] === "Insert", "INSERT",
+	If[MatchQ[getState[nb, "KeySequence"], {"v", ___}], "VISUAL", "NORMAL"]
+];
+
+showStatusPalette[] := (
+	If[MatchQ[$statusPalette, _NotebookObject] && MemberQ[Notebooks[], $statusPalette],
+		Return[$statusPalette]
+	];
+	$statusPalette = CreatePalette[
+		Dynamic[Refresh[
+			With[{nb = InputNotebook[]},
+				If[MatchQ[nb, _NotebookObject],
+					Grid[{
+						{"Mode", Style[modeLabel[nb], Bold]},
+						{"Keys", Style[StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"],
+							FontFamily -> "Monospace"]}
+					}, Alignment -> Left, Spacings -> {2, 1}],
+					"No active notebook"
+				]
+			], UpdateInterval -> 0.2, TrackedSymbols :> {}]],
+		WindowTitle -> "Vilfram", Saveable -> False,
+		WindowSize -> {260, 85}, NotebookEventActions -> {},
+		WindowClickSelect -> False
+	];
+)
 
 (*====================================*)
 
@@ -266,10 +301,13 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := With[{
 *)
 
 getState[nb_NotebookObject, key_?StringQ] :=
-	CurrentValue[
+	Replace[CurrentValue[
 		$FrontEndSession,
 		{PrivateFrontEndOptions, "InterfaceSettings", "ConnorGray/Vilfram", nb, key}
-	];
+	], Inherited :> stateDefault[key]];
+
+stateDefault["Mode"] := "Insert";
+stateDefault["KeySequence"] := {};
 
 setState[nb_NotebookObject, key_?StringQ -> value_] :=
 	CurrentValue[
