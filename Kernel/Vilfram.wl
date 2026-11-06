@@ -241,7 +241,8 @@ vilframEventActions[] := {
 			"KeyUp" :> If[CurrentValue["EventKey"] === "\[RawEscape]",
 				processKeyDown[EvaluationNotebook[], "\[RawEscape]"]
 			],
-			"KeyDown" :> processKeyDown[EvaluationNotebook[], CurrentValue["EventKey"]]
+			"KeyDown" :> processKeyDown[EvaluationNotebook[], CurrentValue["EventKey"],
+				TrueQ[CurrentValue["ControlKey"]]]
 		};
 
 (*====================================*)
@@ -269,7 +270,7 @@ DisableVilfram[$FrontEndSession] := (
 
 (*====================================*)
 
-processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
+processKeyDown[nb_NotebookObject, key_?StringQ, control_:False] := Module[{
 	currentMode = getState[nb, "Mode"],
 	keySequence,
 	result
@@ -287,6 +288,18 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 	(* We're not in Command mode, so do no further processing. *)
 	If[currentMode =!= "Command",
 		Return[Null];
+	];
+	If[TrueQ[control],
+		If[!MatchQ[getState[nb, "KeySequence"], {"v" | "V"}],
+			setState[nb, "KeySequence" -> {}]
+		];
+		Switch[ToLowerCase[key],
+			"b" | "\:0002", FrontEndTokenExecute["ScrollPageUp"],
+			"f" | "\:0006", FrontEndTokenExecute["ScrollPageDown"],
+			"u" | "\:0015", scrollHalfPage[nb, "ScrollLineUp"],
+			"d" | "\:0004", scrollHalfPage[nb, "ScrollLineDown"]
+		];
+		Return[Null]
 	];
 
 	(*----------------------------------*)
@@ -329,6 +342,15 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 commandPrefixQ[keys_List] := AnyTrue[$VilframCommands,
 	Replace[#, HoldPattern[RuleDelayed[pattern_List, _]] :>
 		MatchQ[keys, Take[pattern, UpTo[Length[keys]]]]] &
+];
+
+scrollHalfPage[nb_NotebookObject, token_String] := Module[{height, steps},
+	height = Replace[CurrentValue[nb, WindowSize], {
+		{_?NumericQ, h_?NumericQ} :> h, _ -> 680
+	}];
+	(* shortcut: estimate 20 points per native scroll step; calibrate in a live front end. *)
+	steps = Clip[Round[(height - 80)/40], {1, 100}];
+	Do[FrontEndTokenExecute[token], {steps}];
 ];
 
 moveVisualLine[nb_NotebookObject, direction_] := Module[{

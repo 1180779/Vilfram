@@ -15,6 +15,34 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+	VerificationTest[
+		reset[]; press["\[RawEscape]"];
+		Scan[processKeyDown[nb, #, True] &, {"b", "f"}]; tokens,
+		{"ScrollPageUp", "ScrollPageDown"}, TestID -> "Control b and f scroll full pages"
+	];
+	VerificationTest[
+		reset[]; processKeyDown[nb, "f", True]; {tokens, modeLabel[nb]},
+		{{}, "INSERT"}, TestID -> "Insert mode leaves Control shortcuts to Mathematica"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "V"]; processKeyDown[nb, "f", True];
+		{Last[tokens], pendingKeys[nb], moves}, {"ScrollPageDown", "V", {}},
+		TestID -> "page scrolling preserves Visual Line selection"
+	];
+	Internal`InheritedBlock[{CurrentValue},
+		Unprotect[CurrentValue]; Clear[CurrentValue];
+		CurrentValue[_, WindowSize] := {800, 680};
+		VerificationTest[
+			reset[]; press["\[RawEscape]", "d"]; processKeyDown[nb, "u", True];
+			{Counts[tokens], pendingKeys[nb]}, {<|"ScrollLineUp" -> 15|>, ""},
+			TestID -> "half page scrolling uses window height and cancels pending operators"
+		];
+		VerificationTest[
+			reset[]; press["\[RawEscape]"]; processKeyDown[nb, FromCharacterCode[4], True];
+			Counts[tokens], <|"ScrollLineDown" -> 15|>,
+			TestID -> "Control d also accepts a control character event"
+		];
+	];
 	(* Model native anchor/caret behavior on three lines, each four characters long. *)
 	Internal`InheritedBlock[{FrontEndTokenExecute, SelectionMove},
 		Clear[FrontEndTokenExecute, SelectionMove];

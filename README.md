@@ -115,6 +115,17 @@ Line-oriented:
 
 Document-oriented:
 
+* `Ctrl+b`, `Ctrl+f` — scroll one native page up/down
+* `Ctrl+u`, `Ctrl+d` — scroll approximately half a window up/down
+
+These shortcuts work in Normal, Visual, and Visual Line modes. They scroll the
+viewport without moving the caret or extending the selection. Insert mode keeps
+Mathematica's usual shortcuts. Half-page scrolling estimates the number of native
+line-scroll steps from window height (20 points per step, with 80 points allowed
+for window controls); it is approximate and needs live calibration. Full-page
+scrolling uses the same commands as Mathematica's Page Up/Down keys. Physical
+Control-key delivery has not been verified in this environment.
+
 * `gg` — move to top of notebook
 * `G` — move to end of notebook
 
