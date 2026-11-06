@@ -331,11 +331,22 @@ commandPrefixQ[keys_List] := AnyTrue[$VilframCommands,
 		MatchQ[keys, Take[pattern, UpTo[Length[keys]]]]] &
 ];
 
-moveVisualLine[nb_NotebookObject, direction_] := Module[{offset},
-	 offset = getState[nb, "VisualLineOffset"] + direction;
-	 setState[nb, "VisualLineOffset" -> offset];
-	 FrontEndTokenExecute[If[direction > 0, "SelectNextLine", "SelectPreviousLine"]];
-	 FrontEndTokenExecute[If[offset < 0, "SelectLineBeginning", "SelectLineEnd"]];
+moveVisualLine[nb_NotebookObject, direction_] := Module[{
+	previous = getState[nb, "VisualLineOffset"], offset
+},
+	offset = previous + direction;
+	(* Upward selection must anchor at the end of the starting line. *)
+	If[previous === 0 && direction < 0,
+		SelectionMove[nb, After, Character];
+		FrontEndTokenExecute["SelectLineBeginning"]
+	];
+	FrontEndTokenExecute[If[direction > 0, "SelectNextLine", "SelectPreviousLine"]];
+	If[previous < 0 && offset === 0,
+		SelectionMove[nb, After, Character];
+		FrontEndTokenExecute["MoveLineBeginning"]
+	];
+	FrontEndTokenExecute[If[offset < 0, "SelectLineBeginning", "SelectLineEnd"]];
+	setState[nb, "VisualLineOffset" -> offset];
 ];
 
 (*====================================*)

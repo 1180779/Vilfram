@@ -15,6 +15,31 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+	(* Model native anchor/caret behavior on three lines, each four characters long. *)
+	Internal`InheritedBlock[{FrontEndTokenExecute, SelectionMove},
+		Clear[FrontEndTokenExecute, SelectionMove];
+		FrontEndTokenExecute[token_] := Switch[token,
+			"MoveLineBeginning", caret = 5 Floor[caret/5]; anchor = caret,
+			"SelectLineEnd", caret = 5 Floor[caret/5] + 4,
+			"SelectLineBeginning", caret = 5 Floor[caret/5],
+			"SelectPreviousLine", caret -= 5,
+			"SelectNextLine", caret += 5
+		];
+		SelectionMove[_, After, Character] := (caret = Max[anchor, caret]; anchor = caret);
+		VerificationTest[
+			reset[]; anchor = caret = 12; press["\[RawEscape]", "V", "k"];
+			Sort[{anchor, caret}], {5, 14},
+			TestID -> "upward Visual Line selection includes the full starting line"
+		];
+		VerificationTest[
+			press["j"]; Sort[{anchor, caret}], {10, 14},
+			TestID -> "returning from above keeps the original line selected"
+		];
+		VerificationTest[
+			press["j", "k", "k"]; Sort[{anchor, caret}], {5, 14},
+			TestID -> "crossing the starting line reanchors Visual Line selection"
+		];
+	];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "V"];
 		{tokens, modeLabel[nb], pendingKeys[nb]},
