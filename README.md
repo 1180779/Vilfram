@@ -85,10 +85,12 @@ not implemented. Yank copies first and collapses to the selection's beginning.
 Escape also collapses a selection created by the notebook-specific `di` command.
 
 Escape is registered through both the dedicated `EscapeKeyDown` event and the
-generic keyboard handler. The dedicated route does not depend on `EventKey`.
-Whether the completion popup forwards this event is not yet verified in a live
-front end: if it consumes both events, a second Escape may still be needed after
-dismissing the popup. Autocompletion remains enabled.
+generic keyboard handler. An Escape-only `KeyUp` fallback also switches to Normal
+on release, intended for completion popups that consume the press and then close.
+`KeyUp` exists in the installed Wolfram 15 front end but is not listed in the
+public EventHandler documentation. Its delivery after popup dismissal still needs
+live verification; if release events are also swallowed, a second Escape remains
+necessary. Autocompletion remains enabled. Other key releases do nothing.
 
 ### Movement
 

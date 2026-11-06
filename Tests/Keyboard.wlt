@@ -15,6 +15,28 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+	Internal`InheritedBlock[{CurrentValue},
+		Unprotect[CurrentValue]; Clear[CurrentValue];
+		VerificationTest[
+			reset[]; CurrentValue["EventKey"] = "\[RawEscape]";
+			Replace["KeyUp", vilframEventActions[]];
+			{modeLabel[nb], pendingKeys[nb]}, {"NORMAL", ""},
+			TestID -> "Escape release returns to Normal when the press was consumed"
+		];
+		VerificationTest[
+			reset[]; CurrentValue["EventKey"] = "a";
+			Replace["KeyUp", vilframEventActions[]];
+			{modeLabel[nb], tokens}, {"INSERT", {}},
+			TestID -> "ordinary key releases leave Insert mode alone"
+		];
+		VerificationTest[
+			reset[]; press["\[RawEscape]", "v", "l", "\[RawEscape]"];
+			CurrentValue["EventKey"] = "\[RawEscape]";
+			Replace["KeyUp", vilframEventActions[]];
+			{modeLabel[nb], moves}, {"NORMAL", {{nb, After, Character}}},
+			TestID -> "Escape press and release collapse a selection only once"
+		];
+	];
 		VerificationTest[
 			reset[];
 			Replace["EscapeKeyDown", vilframEventActions[]];

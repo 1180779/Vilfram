@@ -222,6 +222,10 @@ vilframEventActions[] := {
 				&& CurrentValue["EventKey"] =!= "\[RawEscape]"
 			),
 			"EscapeKeyDown" :> processKeyDown[EvaluationNotebook[], "\[RawEscape]"],
+			(* Completion popups may consume the press and close before release. *)
+			"KeyUp" :> If[CurrentValue["EventKey"] === "\[RawEscape]",
+				processKeyDown[EvaluationNotebook[], "\[RawEscape]"]
+			],
 			"KeyDown" :> processKeyDown[EvaluationNotebook[], CurrentValue["EventKey"]]
 		};
 
