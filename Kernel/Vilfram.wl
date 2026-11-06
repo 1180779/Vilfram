@@ -175,7 +175,11 @@ $VilframCommands = {
 		FrontEndTokenExecute["Cut"];
 		setState[EvaluationNotebook[], "Mode" -> "Insert"]
 	),
-	{"v", ___, "y"} :> FrontEndTokenExecute["Copy"],
+	{"v", ___, "y"} :> (
+		FrontEndTokenExecute["Copy"];
+		SelectionMove[EvaluationNotebook[], Before, Character]
+	),
+	{"v", ___, "v"} :> SelectionMove[EvaluationNotebook[], After, Character],
 	(*------------------*)
 	(* Vi-like Commands *)
 	(*------------------*)
@@ -252,6 +256,9 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 },
 	updateCaret[nb];
 	If[key === "\[RawEscape]",
+		If[MatchQ[getState[nb, "KeySequence"], {"v", ___} | {"d", Repeated["i"]}],
+			SelectionMove[nb, After, Character]
+		];
 		setState[nb, "Mode" -> "Command"];
 		setState[nb, "KeySequence" -> {}];
 		Return[Null];

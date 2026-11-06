@@ -77,8 +77,12 @@ The following Command-mode sequences are supported:
 New notebooks start in Insert mode. `I` and `A` use the same notebook line
 boundaries as `^` and `$`; notebook boxes and wrapped lines can differ from Vim's
 plain text lines. Visual mode is represented internally by a retained `v` prefix;
-the status bar reports that state as `VISUAL`. Pressing Escape stops extending the
-selection without deleting the selected content.
+the status bar reports that state as `VISUAL`. Escape or a second `v` collapses
+the native selection to its end without deleting content. Thus `Esc`, then `i`,
+inserts at a caret instead of replacing the old selection. Unlike Vim, Escape
+uses the selection's end even for a backward selection; active-end tracking is
+not implemented. Yank copies first and collapses to the selection's beginning.
+Escape also collapses a selection created by the notebook-specific `di` command.
 
 ### Movement
 

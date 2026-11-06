@@ -16,6 +16,32 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
 	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "l", "\[RawEscape]", "i"];
+		{moves, modeLabel[nb], pendingKeys[nb]},
+		{{{nb, After, Character}}, "INSERT", ""},
+		TestID -> "Escape collapses visual selection before entering Insert"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "h", "\[RawEscape]"];
+		{moves, modeLabel[nb]}, {{{nb, After, Character}}, "NORMAL"},
+		TestID -> "Escape also collapses backward visual selections"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "l", "y"];
+		{tokens, moves, modeLabel[nb]},
+		{{"SelectNext", "Copy"}, {{nb, Before, Character}}, "NORMAL"},
+		TestID -> "visual yank collapses the selection after copying"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "v", "l", "v"];
+		{moves, modeLabel[nb]}, {{{nb, After, Character}}, "NORMAL"},
+		TestID -> "v toggles out of Visual and collapses the selection"
+	];
+	VerificationTest[
+		reset[]; press["\[RawEscape]", "d", "\[RawEscape]"]; moves,
+		{}, TestID -> "canceling an ordinary prefix does not move the caret"
+	];
+	VerificationTest[
 		reset[];
 		Union[Flatten[Cases[statusBar[nb, 800], (expr : (_Pane | _Row | _Framed)) :>
 			Complement[First /@ Select[List @@ expr, MatchQ[#, _Rule | _RuleDelayed] &],
