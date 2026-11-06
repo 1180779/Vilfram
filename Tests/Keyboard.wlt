@@ -15,6 +15,13 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 	press[keys__String] := Scan[processKeyDown[nb, #] &, {keys}];
 
 	VerificationTest[stateDefault["Mode"], "Insert", TestID -> "new notebooks start in Insert"];
+	VerificationTest[
+		reset[];
+		Union[Flatten[Cases[statusBar[nb, 800], (expr : (_Pane | _Row | _Framed)) :>
+			Complement[First /@ Select[List @@ expr, MatchQ[#, _Rule | _RuleDelayed] &],
+				First /@ Options[Head[expr]]], {0, Infinity}]]],
+		{}, TestID -> "status layout uses supported front end options"
+	];
 	VerificationTest[stateDefault["KeySequence"], {}, TestID -> "new notebooks have an empty buffer"];
 	VerificationTest[
 		reset[]; press["\[RawEscape]", "a"]; {tokens, getState[nb, "Mode"]},

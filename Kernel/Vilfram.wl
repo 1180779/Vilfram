@@ -348,12 +348,13 @@ statusText[nb_NotebookObject] := With[{
 statusBar[nb_NotebookObject, width_?NumericQ] := With[{w = Max[160, width]},
 	Framed[
 		Row[{
-			Pane[Style[modeLabel[nb], Bold, FontColor -> RGBColor["#1e222a"]],
-				{100, 26}, Alignment -> Center, Background -> modeColor[nb]],
+			Framed[Pane[Style[modeLabel[nb], Bold, FontColor -> RGBColor["#1e222a"]],
+				{100, 26}, Alignment -> Center],
+				Background -> modeColor[nb], FrameStyle -> None, FrameMargins -> 0],
 			Pane[Style[pendingKeys[nb], FontColor -> RGBColor["#abb2bf"]],
 				{w - 112, 26}, Alignment -> {Right, Center}],
 			Spacer[12]
-		}, Spacings -> 0],
+		}, ""],
 		Background -> RGBColor["#22262e"], FrameStyle -> None, FrameMargins -> 0,
 		BaseStyle -> {FontFamily -> "Monospace", FontSize -> 11}
 	]
