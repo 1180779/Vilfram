@@ -172,6 +172,9 @@ EnableVilfram[] := (
 
 EnableVilfram[obj:$FrontEndSession] := (
 	setVilframOptions[obj];
+	If[!ValueQ[$originalCaretThickness],
+		$originalCaretThickness = Quiet[CurrentValue[$FrontEndSession, "InsertionCaretThickness"]]
+	];
 	showStatusPalette[];
 )
 
@@ -199,6 +202,10 @@ DisableVilfram[$FrontEndSession] := (
 	}];
 	If[MatchQ[$statusPalette, _NotebookObject], Quiet[NotebookClose[$statusPalette]]];
 	$statusPalette = None;
+	If[NumberQ[$originalCaretThickness],
+		CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = $originalCaretThickness
+	];
+	Clear[$originalCaretThickness, $appliedCaretThickness];
 )
 
 (*====================================*)
@@ -208,6 +215,7 @@ processKeyDown[nb_NotebookObject, key_?StringQ] := Module[{
 	keySequence,
 	result
 },
+	updateCaret[nb];
 	If[key === "\[RawEscape]",
 		setState[nb, "Mode" -> "Command"];
 		setState[nb, "KeySequence" -> {}];
@@ -267,6 +275,16 @@ modeLabel[nb_NotebookObject] := If[getState[nb, "Mode"] === "Insert", "INSERT",
 	If[MatchQ[getState[nb, "KeySequence"], {"v", ___}], "VISUAL", "NORMAL"]
 ];
 
+(* This private front end setting gives a thick bar, not a glyph-width Vim block. *)
+updateCaret[nb_NotebookObject] := If[NumberQ[$originalCaretThickness],
+	With[{thickness = If[getState[nb, "Mode"] === "Insert", $originalCaretThickness, 6]},
+		If[thickness =!= $appliedCaretThickness,
+			CurrentValue[$FrontEndSession, "InsertionCaretThickness"] = thickness;
+			$appliedCaretThickness = thickness
+		]
+	]
+];
+
 showStatusPalette[] := (
 	If[MatchQ[$statusPalette, _NotebookObject] && MemberQ[Notebooks[], $statusPalette],
 		Return[$statusPalette]
@@ -275,6 +293,7 @@ showStatusPalette[] := (
 		Dynamic[Refresh[
 			With[{nb = InputNotebook[]},
 				If[MatchQ[nb, _NotebookObject],
+					updateCaret[nb];
 					Grid[{
 						{"Mode", Style[modeLabel[nb], Bold]},
 						{"Keys", Style[StringJoin[getState[nb, "KeySequence"] /. "\r" -> "<Enter>"],
@@ -309,11 +328,13 @@ getState[nb_NotebookObject, key_?StringQ] :=
 stateDefault["Mode"] := "Insert";
 stateDefault["KeySequence"] := {};
 
-setState[nb_NotebookObject, key_?StringQ -> value_] :=
+setState[nb_NotebookObject, key_?StringQ -> value_] := (
 	CurrentValue[
 		$FrontEndSession,
 		{PrivateFrontEndOptions, "InterfaceSettings", "ConnorGray/Vilfram", nb, key}
 	] = value;
+	If[key === "Mode", updateCaret[nb]];
+);
 
 (*====================================*)
 

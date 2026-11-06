@@ -73,6 +73,25 @@ Internal`InheritedBlock[{getState, setState, EvaluationNotebook, FrontEndTokenEx
 		press["\[RawEscape]"]; {getState[nb, "Mode"], getState[nb, "KeySequence"]},
 		{"Command", {}}, TestID -> "Escape from Insert also clears stale keys"
 	];
+	Internal`InheritedBlock[{CurrentValue},
+		Unprotect[CurrentValue]; Clear[CurrentValue];
+		Block[{$originalCaretThickness = 1, $appliedCaretThickness},
+			VerificationTest[
+				reset[]; press["\[RawEscape]", "h"]; CurrentValue[$FrontEndSession, "InsertionCaretThickness"],
+				6, TestID -> "Normal mode uses a thick caret"
+			];
+			VerificationTest[
+				setState[nb, "Mode" -> "Insert"]; updateCaret[nb];
+				CurrentValue[$FrontEndSession, "InsertionCaretThickness"],
+				1, TestID -> "Insert restores the original caret width"
+			];
+			VerificationTest[
+				$originalCaretThickness = $Failed; setState[nb, "Mode" -> "Command"]; updateCaret[nb];
+				CurrentValue[$FrontEndSession, "InsertionCaretThickness"],
+				1, TestID -> "unsupported front ends leave caret settings alone"
+			];
+		]
+	];
 ];
 
 End[];

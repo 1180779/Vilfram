@@ -148,11 +148,19 @@ the notebook environment.
   - `di+` — expands the selection each time `i` is pressed; deletes when the
   `Return` key is pressed
 
-* No block caret
+* Caret appearance
 
-  Vi often distinguishes between Insert and Command mode by, respectively,
-  changing the input caret between a block which is placed *on* a particular
-  character, and a vertical bar which is placed *in-between* characters.
+  Vilfram attempts to use a thick caret in Normal/Visual mode and restores the
+  original thin caret in Insert mode. Disabling Vilfram restores the original
+  thickness. This uses the undocumented `InsertionCaretThickness` front end
+  setting, discovered in the installed Wolfram 15.0 front end. It is applied
+  only when the front end returns a numeric value for that setting.
+
+  This is experimental: it has not been visually verified. It widens the native
+  insertion bar; it does not create Vim's character-width block positioned over
+  a character. The setting applies to the front end session, so the status
+  palette updates it when notebook focus changes, and key presses update it too.
+  Front ends that do not expose the setting retain their usual caret.
 
 
 
