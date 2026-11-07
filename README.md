@@ -6,11 +6,18 @@ Vi-like editing in Wolfram Notebooks
 
 ### Features
 
-* Vilfram supports most of the standard Vi-like movement, selection, and
-  deletion commands.
+* Vilfram supports a subset of standard Vi-like movement, selection, deletion,
+  and change commands, alongside notebook-specific selection expansion.
 
 * Vilfram works in any file type that can be opened by the Wolfram front end,
   including: .nb, .wl, .wls, .wlt, and more.
+
+* A compact strip at the bottom of each notebook shows `INSERT`, `NORMAL`,
+  or `VISUAL` on a colored badge, with pending keys right-aligned and inset by
+  12 points. The colors match this checkout's user's NvChad One Dark setup:
+  Normal `#81a1c1`, Insert `#c882e7`, Visual `#a3b8ef`, on `#22262e`.
+  There is no package label or `Keys:` prefix. Completed and invalid commands
+  clear the buffer. Mode and pending keys are independent for each notebook.
 
 
 
@@ -60,8 +67,52 @@ The following Command-mode sequences are supported:
 
 ### Mode switching
 
-* `i`, `a` — enter Insert mode
-* `Esc` — enter Command mode
+* `i` — enter Insert mode at the current caret
+* `a` — advance one native character/box position and enter Insert mode
+* `I` — move to the beginning of the current notebook line and enter Insert mode
+* `A` — move to the end of the current notebook line and enter Insert mode
+* `o`, `O` — open a line below/above and enter Insert mode
+* `Esc` — enter Command mode (shown as `NORMAL`) and cancel pending keys/visual selection
+
+New notebooks start in Insert mode. `I` and `A` use the same notebook line
+boundaries as `^` and `$`; notebook boxes and wrapped lines can differ from Vim's
+plain text lines. Visual mode is represented internally by a retained `v` prefix;
+the status bar reports that state as `VISUAL`. Escape or a second `v` collapses
+the native selection to its end without deleting content. Thus `Esc`, then `i`,
+inserts at a caret instead of replacing the old selection. Unlike Vim, Escape
+uses the selection's end even for a backward selection; active-end tracking is
+not implemented. Yank copies first and collapses to the selection's beginning.
+Escape also collapses a selection created by the notebook-specific `di` command.
+
+Escape is registered through both the dedicated `EscapeKeyDown` event and the
+generic keyboard handler. An Escape-only `KeyUp` fallback also switches to Normal
+on release, intended for completion popups that consume the press and then close.
+`KeyUp` exists in the installed Wolfram 15 front end but is not listed in the
+public EventHandler documentation. This fallback has been reported ineffective
+with the completion popup on Linux/Wolfram 15: a second Escape is still needed.
+Autocompletion remains enabled. Other key releases do nothing.
+
+To investigate this on the affected front end, evaluate:
+
+```wolfram
+Get["/home/rdkgsk/Projects/Vilfram/Tests/EscapeProbe.wl"]
+```
+
+The disposable test notebook records notebook and front-end-wide keyboard events
+and attempts to enter Normal mode on Escape from either layer. Type `Integr`,
+wait for suggestions, press Escape once, and check the mode. If it stays Insert,
+press Escape again as a control. Use **Copy report** to share the event trace.
+Closing the test window (or its **Stop and restore handlers** button) restores the
+previous front-end handlers. During the test, event forwarding is enabled globally;
+finish the test before editing other notebooks. This experiment does not establish
+that front-end-wide handlers can intercept a native popup.
+
+An alternative workaround is disabling automatic popups through
+`CodeAssistOptions` → `"AutoPopupEnable"` in the Option Inspector, as described by
+[Wolfram Support](https://support.wolfram.com/12406/). The Linux Edit menu still
+provides **Complete Selection** (`Ctrl+k`) for on-demand completion. Any manually
+opened popup may still consume the first Escape. Vilfram does not change this
+preference automatically.
 
 ### Movement
 
@@ -79,17 +130,46 @@ Word-oriented:
 
 Line-oriented:
 
-* `^` — move to beginning of line
+* `0`, `^` — move to beginning of line
 * `$` — move to end of line
 * `o` — insert new line below
 * `O` — insert new line above
 
 Document-oriented:
 
-* `G` — move to top of notebook
-* `gg` — move to end of notebook
+* `Ctrl+b`, `Ctrl+f` — scroll one native page up/down
+* `Ctrl+u`, `Ctrl+d` — scroll approximately half a window up/down
+
+These shortcuts work in Normal, Visual, and Visual Line modes. They scroll the
+viewport without moving the caret or extending the selection. Insert mode keeps
+Mathematica's usual shortcuts. Half-page scrolling estimates the number of native
+line-scroll steps from window height (20 points per step, with 80 points allowed
+for window controls); it is approximate and needs live calibration. Full-page
+scrolling uses the same commands as Mathematica's Page Up/Down keys. Physical
+Control-key delivery has not been verified in this environment.
+
+* `gg` — move to top of notebook
+* `G` — move to end of notebook
+
+These document motions now follow Vim's direction; earlier versions of this
+checkout had them reversed.
 
 ### Visual Selection
+
+* `V` — select the current notebook line and enter `V-LINE` mode
+  - `j`, `k` — extend/shrink the selection to line boundaries
+  - `y` — copy and return to Normal
+  - `d`, `x` — cut and return to Normal
+  - `c` — cut and enter Insert
+  - `V` or `Esc` — leave the mode and collapse the selection
+
+Visual Line uses native line-beginning/end selection, with the same color as
+Visual mode and a distinct `V-LINE` badge. It selects line contents and intervening
+breaks, not a trailing newline. Copy and paste use Mathematica's clipboard;
+`p` inserts at the caret, not automatically on a new line as in Vim. Native
+wrapped-line and cell-boundary behavior still needs live verification. The
+selection tracks requested up/down moves; reversing after movement is blocked
+at a cell boundary may require leaving and re-entering `V` mode.
 
 * `v` — begin visual selection
   - `h` — change selection single character left
@@ -102,14 +182,32 @@ Document-oriented:
   - `$` — extend selection to end of line
 
   - `y` — copy ("yank") current selection
-  - `x` — cut current selection
+  - `x`, `d` — cut current selection and return to Normal mode
+  - `c` — cut current selection and enter Insert mode
 
 ### Deletion
 
+* `dd` — select the current native notebook text line and cut it
 * `de` — delete to next word
 * `db` — delete to previous word
+* `dw` — delete to next natural word
 * `d^` — delete to beginning of line
-* `d$` — delete to end of line
+* `d$`, `D` — delete to end of line
+
+### Change
+
+* `cc` — clear the current line's contents and enter Insert mode
+* `C` — delete from the caret to the end of the line and enter Insert mode
+
+`cc` preserves the line break. `dd` uses the documented
+[`SelectionMove[..., All, TextLine]`](https://reference.wolfram.com/language/ref/SelectionMove.html)
+unit and the native Cut action, preserving structured notebook data on the
+clipboard. If selecting the line fails, nothing is cut. Line boundaries and
+line-break selection follow the front end, including in wrapped text and
+typeset cells; this has not been verified in a live front end here. `p` uses
+native Paste at the caret, rather than Vim's separate linewise paste behavior.
+Counts such as `3dd`, registers, repeat (`.`), and general change motions such
+as `cw` are not implemented.
 
 ### Other
 
@@ -134,11 +232,36 @@ the notebook environment.
   - `di+` — expands the selection each time `i` is pressed; deletes when the
   `Return` key is pressed
 
-* No block caret
+* Caret appearance
 
-  Vi often distinguishes between Insert and Command mode by, respectively,
-  changing the input caret between a block which is placed *on* a particular
-  character, and a vertical bar which is placed *in-between* characters.
+  Vilfram attempts to use a thick, mode-colored caret in Normal/Visual mode and
+  restores the original caret in Insert mode. Disabling Vilfram restores both
+  the original thickness and color. This uses undocumented
+  `InsertionCaretThickness` and `InsertionCaretColor` front end settings,
+  discovered in the installed Wolfram 15.0 front end. Thickness is applied only
+  when the setting returns a number; color is applied independently when its
+  setting returns an explicit color.
+
+  This is experimental: it has not been visually verified. It widens the native
+  insertion bar; it does not create Vim's character-width block positioned over
+  a character. The setting applies to the front end session, so the status
+  bar updates it when notebook focus changes, and key presses update it too.
+  Front ends that do not expose the setting retain their usual caret.
+
+  There is no separate enable switch. Press Escape for Normal mode and `i` for
+  Insert mode. To check whether your front end exposes the setting, evaluate:
+
+  ```wolfram
+  CurrentValue[$FrontEndSession, "InsertionCaretThickness"]
+  CurrentValue[$FrontEndSession, "InsertionCaretColor"]
+  ```
+
+  A numeric thickness enables automatic thickness switching. An explicit color
+  (`RGBColor`, `GrayLevel`, `Hue`, or `CMYKColor`) enables automatic color
+  switching even if thickness is unavailable. Other results mean that part of
+  the experiment is unavailable; forcing a value is not a verified workaround.
+  No verified setting for text-caret blinking was found. The always-visible
+  colored mode badge provides a nonflashing cue regardless of caret support.
 
 
 
@@ -162,3 +285,70 @@ Use **Edit** > **Enable Vilfram** to re-enable Vilfram.
 
 
 [WindowStatusArea]: https://reference.wolfram.com/language/ref/WindowStatusArea
+
+## Working from a local checkout
+
+To load changes into an already running Mathematica kernel, evaluate:
+
+```wolfram
+Get["/home/rdkgsk/Projects/Vilfram/Kernel/Vilfram.wl"];
+ConnorGray`Vilfram`EnableVilfram[$FrontEndSession];
+```
+
+This uses the checkout for the current session. Re-run after editing the source.
+In a fresh kernel, you can also make the checkout discoverable with
+[PacletDirectoryLoad](https://reference.wolfram.com/language/ref/PacletDirectoryLoad.html):
+
+```wolfram
+PacletDirectoryLoad["/home/rdkgsk/Projects/Vilfram"];
+Needs["ConnorGray`Vilfram`"];
+ConnorGray`Vilfram`EnableVilfram[$FrontEndSession];
+```
+
+`PacletDirectoryLoad` applies only to the current kernel session; repeat it
+after restarting the kernel.
+
+The styled strip uses
+[AttachCell](https://reference.wolfram.com/language/ref/AttachCell.html), anchored
+to the notebook's bottom edge. Its cell is deployed and is not saved with the
+notebook. It is 26 points high and overlays the lower edge of the document
+viewport; it does not reserve a separate row of document space. This is the
+tradeoff for colored blocks and independent alignment: the native
+[WindowStatusArea](https://reference.wolfram.com/language/ref/WindowStatusArea.html)
+is text-oriented. The rendered strip has not yet been verified in a live front
+end in this environment.
+
+A dynamic native status area installs one attached strip per normal notebook.
+It also updates the experimental caret only for the active notebook. Vilfram
+preserves the existing scrollbars and other window controls. Disabling removes
+the attached strips and restores the previous session settings. Re-enabling
+also closes a floating palette left by an earlier Vilfram version. If the
+attachment fails, the native status area retains a plain mode/key display.
+
+The status bar is inherited from session options. A notebook with explicit local
+`WindowStatusArea` or `WindowElements` settings can override it. To let such a
+notebook use the session settings, evaluate in that notebook:
+
+```wolfram
+SetOptions[EvaluationNotebook[], WindowStatusArea -> Inherited, WindowElements -> Inherited];
+```
+
+To install the edited checkout for future Mathematica sessions:
+
+```wolfram
+archive = CreatePacletArchive["/home/rdkgsk/Projects/Vilfram"];
+PacletInstall[archive, ForceVersionInstall -> True];
+PacletEnable["ConnorGray/Vilfram"];
+```
+
+Then quit Mathematica completely and reopen it. Repeat after future source edits.
+
+Run the keyboard regression tests from the checkout directory:
+
+```sh
+WolframKernel -noinit -noprompt -script Tests/Run.wls
+```
+
+These tests run the real dispatcher with in-memory notebook state and front end
+tokens replaced at the boundary. They do not simulate physical keyboard events
+or verify rendered notebook layout.
